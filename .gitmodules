@@ -1,3 +1,6 @@
 [submodule "notyou"]
 	path = notyou
 	url = https://github.com/gregm123456/notyou
+[submodule "pico2W_lcd1.3"]
+	path = pico2W_lcd1.3
+	url = https://github.com/gregm123456/pico2W_lcd1.3
