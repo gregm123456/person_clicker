@@ -1,6 +1,8 @@
 name: Build MicroPython RP2 (uzlib)
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
