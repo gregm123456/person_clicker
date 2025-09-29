@@ -284,42 +284,62 @@ class Display:
                     print('Unsupported PNG color type', colortype)
                     return
 
-                # Build raw pixel array by parsing scanlines (no interlace)
-                row_bytes = width * bpp
-                pixels = []
-                i = 0
-                for y in range(height):
-                    if i >= len(decomp):
-                        break
-                    filter_type = decomp[i]
-                    i += 1
-                    row = bytearray(decomp[i:i+row_bytes])
-                    i += row_bytes
-                    # For simplicity, only support filter type 0 (None)
-                    if filter_type != 0:
-                        print('Unsupported PNG filter type', filter_type)
-                        return
-                    pixels.append(bytes(row))
-
-                # Scale to display size using nearest-neighbor
+                # Memory-efficient streaming: process one display line at a time
+                row_bytes = width * bpp + 1  # +1 for filter byte
                 out_w = self.width
                 out_h = self.height
-                # Prepare buffer line by line and write to display
+                
+                print(f'Streaming PNG: {width}x{height} -> {out_w}x{out_h}, bpp={bpp}')
+                
+                # Process each output display line
                 for out_y in range(out_h):
+                    # Map output line to source line
                     src_y = int(out_y * height / out_h)
-                    row = pixels[src_y]
-                    # build RGB565 line
-                    line_buf = bytearray()
+                    if src_y >= height:
+                        src_y = height - 1
+                    
+                    # Find source row in decompressed data
+                    row_start = src_y * row_bytes
+                    if row_start >= len(decomp):
+                        break
+                        
+                    filter_type = decomp[row_start]
+                    # For simplicity, only support filter type 0 (None)
+                    if filter_type != 0:
+                        print(f'Unsupported PNG filter type {filter_type} at line {src_y}')
+                        continue
+                    
+                    # Extract pixel data for this source row (skip filter byte)
+                    row_data_start = row_start + 1
+                    row_data_end = row_data_start + width * bpp
+                    
+                    # Build RGB565 line for display
+                    line_buf = bytearray(out_w * 2)  # 2 bytes per RGB565 pixel
+                    buf_idx = 0
+                    
                     for out_x in range(out_w):
+                        # Map output x to source x
                         src_x = int(out_x * width / out_w)
-                        base = src_x * bpp
-                        r = row[base]
-                        g = row[base+1]
-                        b = row[base+2]
+                        if src_x >= width:
+                            src_x = width - 1
+                            
+                        # Get source pixel
+                        pixel_base = row_data_start + src_x * bpp
+                        if pixel_base + bpp <= row_data_end:
+                            r = decomp[pixel_base]
+                            g = decomp[pixel_base + 1]
+                            b = decomp[pixel_base + 2]
+                        else:
+                            # Fallback for edge cases
+                            r = g = b = 0
+                        
+                        # Convert RGB888 to RGB565
                         rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
-                        line_buf.append((rgb565 >> 8) & 0xFF)
-                        line_buf.append(rgb565 & 0xFF)
-                    # write line to display
+                        line_buf[buf_idx] = (rgb565 >> 8) & 0xFF      # High byte
+                        line_buf[buf_idx + 1] = rgb565 & 0xFF         # Low byte
+                        buf_idx += 2
+                    
+                    # Write line directly to display
                     self.driver._set_window(0, out_y, out_w-1, out_y)
                     if self.driver.cs:
                         self.driver.cs.value(0)
@@ -328,6 +348,13 @@ class Display:
                     self.driver.spi.write(line_buf)
                     if self.driver.cs:
                         self.driver.cs.value(1)
+                        
+                    # Garbage collect periodically to manage memory
+                    if out_y % 50 == 0:
+                        import gc
+                        gc.collect()
+                
+                print('Streaming PNG display completed')
                 return
             except Exception as e:
                 print('On-device PNG display failed:', e)
