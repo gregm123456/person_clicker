@@ -1,0 +1,51 @@
+name: Build MicroPython RP2 (uzlib)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-uzlib-uf2:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git cmake python3 python3-pip pkg-config libffi-dev libssl-dev wget unzip
+          sudo apt-get install -y gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi
+
+      - name: Clone MicroPython
+        run: |
+          git clone https://github.com/micropython/micropython.git micropython-build
+          cd micropython-build
+          git submodule update --init --recursive
+
+      - name: Enable uzlib in rp2 port (sed insertion)
+        run: |
+          mpconf=micropython-build/ports/rp2/mpconfigport.h
+          if ! grep -q MICROPY_PY_UZLIB "$mpconf"; then
+            sed -n '1,200p' "$mpconf"
+            awk '/\/\/ Extended modules/{print; print "#ifndef MICROPY_PY_UZLIB"; print "#define MICROPY_PY_UZLIB (1)"; print "#endif"; next} {print}' "$mpconf" > /tmp/mpconf && mv /tmp/mpconf "$mpconf"
+            echo 'Inserted MICROPY_PY_UZLIB'
+          else
+            echo 'MICROPY_PY_UZLIB already present'
+          fi
+
+      - name: Build mpy-cross
+        run: |
+          cd micropython-build/mpy-cross
+          make -j$(nproc)
+
+      - name: Build RP2 firmware (RPI_PICO_W)
+        run: |
+          cd micropython-build/ports/rp2
+          make submodules
+          make BOARD=RPI_PICO_W -j$(nproc)
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: micropython-rp2-uzlib-uf2
+          path: micropython-build/ports/rp2/build-RPI_PICO_W/firmware.uf2

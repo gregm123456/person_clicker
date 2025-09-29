@@ -1,0 +1,28 @@
+{
+  "api_base_url": "http://192.168.4.68:7860",
+  "api_txt2img_path": "/sdapi/v1/txt2img",
+  "image_request_size": 512,
+  "generation": {
+    "steps": 20,
+    "cfg_scale": 7.0,
+    "sampler_name": "Euler"
+  },
+  "display": {
+    "width": 240,
+    "height": 240
+  },
+  "pins": {
+    "button_a": 15,
+    "button_b": 17,
+    "button_x": 19,
+    "button_y": 21,
+    "joystick_press": 3
+  },
+  "timeouts": {
+    "wifi_connect_seconds": 20,
+    "api_timeout_seconds": 30
+  },
+  "selection": {
+    "max_retry_pick_different": 5
+  }
+}
