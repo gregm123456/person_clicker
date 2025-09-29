@@ -24,30 +24,47 @@ jobs:
           cd micropython-build
           git submodule update --init --recursive
 
-      - name: Enable uzlib in rp2 port (sed insertion)
+      - name: Enable uzlib in rp2 port (deterministic)
         run: |
+          set -euo pipefail
           mpconf=micropython-build/ports/rp2/mpconfigport.h
-          if ! grep -q MICROPY_PY_UZLIB "$mpconf"; then
-            sed -n '1,200p' "$mpconf"
-            awk '/\/\/ Extended modules/{print; print "#ifndef MICROPY_PY_UZLIB"; print "#define MICROPY_PY_UZLIB (1)"; print "#endif"; next} {print}' "$mpconf" > /tmp/mpconf && mv /tmp/mpconf "$mpconf"
-            echo 'Inserted MICROPY_PY_UZLIB'
-          else
-            echo 'MICROPY_PY_UZLIB already present'
+          if [ ! -f "$mpconf" ]; then
+            echo "ERROR: $mpconf not found" >&2
+            ls -l micropython-build/ports/rp2 || true
+            exit 1
           fi
+          # If define exists, replace it with (1)
+          if grep -q '^[[:space:]]*#define[[:space:]]\+MICROPY_PY_UZLIB' "$mpconf"; then
+            sed -i 's/^[[:space:]]*#define[[:space:]]\+MICROPY_PY_UZLIB.*$/#define MICROPY_PY_UZLIB (1)/' "$mpconf"
+            echo "Replaced existing MICROPY_PY_UZLIB definition"
+          else
+            # Try to insert near other MICROPY_PY_* lines; fallback to append
+            if awk '/MICROPY_PY_/' "$mpconf" | grep -q .; then
+              awk 'BEGIN{inserted=0} /MICROPY_PY_/{print; if(!inserted){print "#define MICROPY_PY_UZLIB (1)"; inserted=1} next} {print}' "$mpconf" > /tmp/mpconf && mv /tmp/mpconf "$mpconf"
+              echo "Inserted MICROPY_PY_UZLIB near other MICROPY_PY_* entries"
+            else
+              echo "#define MICROPY_PY_UZLIB (1)" >> "$mpconf"
+              echo "Appended MICROPY_PY_UZLIB at end of file"
+            fi
+          fi
+          # Show context for logs
+          grep -n 'MICROPY_PY_UZLIB' "$mpconf" || true
+          sed -n '1,160p' "$mpconf" | sed -n '1,120p'
 
       - name: Build mpy-cross
         run: |
           cd micropython-build/mpy-cross
           make -j$(nproc)
 
-      - name: Build RP2 firmware (RPI_PICO_W)
+      - name: Build RP2 firmware (RPI_PICO2_W)
         run: |
           cd micropython-build/ports/rp2
           make submodules
-          make BOARD=RPI_PICO_W -j$(nproc)
+          # Build for Pico 2 W board name (device reports RPI_PICO2_W)
+          make BOARD=RPI_PICO2_W -j$(nproc)
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
           name: micropython-rp2-uzlib-uf2
-          path: micropython-build/ports/rp2/build-RPI_PICO_W/firmware.uf2
+          path: micropython-build/ports/rp2/build-RPI_PICO2_W/firmware.uf2
