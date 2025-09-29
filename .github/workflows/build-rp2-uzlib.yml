@@ -56,12 +56,23 @@ jobs:
           cd micropython-build/mpy-cross
           make -j$(nproc)
 
+      - name: Check uzlib extmod compilation
+        run: |
+          cd micropython-build
+          echo "=== Checking if uzlib extmod exists ==="
+          ls -la extmod/uzlib* || echo "No uzlib files found in extmod/"
+          echo "=== Checking rp2 port extmod inclusion ==="
+          grep -r "uzlib\|UZLIB" ports/rp2/ || echo "No uzlib references in rp2 port"
+          
       - name: Build RP2 firmware (RPI_PICO2_W)
         run: |
           cd micropython-build/ports/rp2
           make submodules
           # Build for Pico 2 W board name (device reports RPI_PICO2_W)
-          make BOARD=RPI_PICO2_W -j$(nproc)
+          echo "=== Building with verbose output to check uzlib compilation ==="
+          make BOARD=RPI_PICO2_W -j$(nproc) V=1 | tee build.log
+          echo "=== Checking if uzlib was compiled ==="
+          grep -i "uzlib\|extmod.*uzlib" build.log || echo "No uzlib compilation found"
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
