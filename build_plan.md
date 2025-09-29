@@ -42,6 +42,7 @@ micropython/
 - storage.py              # atomic file write/read utilities
 - config.json             # non-sensitive app settings and defaults
 - secrets.json.template   # template for WiFi and Automatic1111 user/pass (user fills to secrets.json)
+- secrets.local.json      # OPTIONAL local secrets file (gitignored) used for deploy-only workflow
 - demographics.json       # Category A/B/X/Y mapping and value lists (long country list included)
 - assets/
 	- unknown_portrait.png  # placeholder copied from notyou/
@@ -50,6 +51,8 @@ micropython/
 - README.md               # deploy instructions, editing config, mpremote steps
 
 Files intended to be edited on-device: `config.json`, `demographics.json` (if desired), and `secrets.json` (secrets.json is not added to VCS; template only).
+
+Note about local secrets for deploy-only workflow: in addition to the `secrets.json.template` kept in the repo, the project will support a developer-managed `secrets.local.json` file that is listed in `.gitignore` and is never committed. This local secrets file allows fully-configured deployments (no manual edits on the Pico) by keeping credentials off VCS while still allowing `mpremote fs put` to push the file to the device. The README will describe how to create `secrets.local.json` from the template and how to exclude it from git.
 
 ---
 
@@ -65,6 +68,9 @@ Files intended to be edited on-device: `config.json`, `demographics.json` (if de
 - `secrets.json` (JSON, not committed)
 	- wifi: ssid, password
 	- automatic1111: user, password
+
+- `secrets.local.json` (JSON, optional, gitignored)
+  - Same structure as `secrets.json` but intended to live only on developer machine. The README will document creating this file from `secrets.json.template` and ensuring it is added to `.gitignore`. Deployment commands will explicitly include this file when syncing to the Pico.
 
 - `demographics.json` (JSON)
 	- mapping for Category A/B/X/Y to real category names and value arrays
@@ -125,6 +131,19 @@ Security note: `secrets.json` is plain text on the Pico per project requirement.
 - Prepare: copy `micropython/secrets.json.template` → `micropython/secrets.json` and fill credentials.
 - Sync entire tree to Pico (recommended):
 
+Optional secure deploy workflow (no on-device editing):
+- Maintain `micropython/secrets.local.json` on your development machine (create from template). Add `micropython/secrets.local.json` to the repository `.gitignore` so it is never committed.
+- When deploying, use the `mpremote fs put` workflow to push the repo files plus the local secrets file to the Pico in one operation. Example (macOS / bash):
+
+```bash
+# from repo root
+# copy repo micropython tree, then overwrite secrets on device from local file
+mpremote connect serial://auto fs put micropython/:/
+mpremote connect serial://auto fs put micropython/secrets.local.json :/secrets.json
+```
+
+This ensures the device receives the fully-configured app but the sensitive file remains out of git history.
+
 ```bash
 # from repo root (macOS / bash)
 mpremote connect serial://auto fs put micropython/:/
@@ -137,6 +156,16 @@ mpremote connect serial://auto run :/main.py
 ```
 
 Notes: exact serial path may be platform-specific; the commands above mirror the `pico2W_lcd1.3/` submodule workflow.
+
+## Documentation requirement
+The project will include comprehensive documentation for Pico 2WH deployment and device management modeled after the `pico2W_lcd1.3` submodule's `README.md`. The docs will cover:
+- Preparing the development machine (mpremote installation, Python environment if needed).
+- Creating `secrets.local.json` from the template and adding it to `.gitignore`.
+- Full `mpremote` sync and run commands (examples for macOS bash).
+- Recovery procedures (how to reset the Pico, safe mode, reinstall firmware if needed).
+- How to remove the included submodules safely after migration.
+
+The README in `micropython/` will contain these instructions verbatim and reference any supporting scripts or helper commands included in the repo.
 
 ---
 
