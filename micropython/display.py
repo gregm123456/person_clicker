@@ -236,7 +236,7 @@ class Display:
                     print('Not a PNG:', path)
                     return
 
-                # Parse chunks to find IHDR and concatenated IDAT
+                # Parse chunks to find IHDR and concatenated IDAT (avoid struct.unpack)
                 offset = 8
                 width = height = None
                 bitdepth = None
@@ -245,41 +245,91 @@ class Display:
                 while offset < len(data):
                     if offset + 8 > len(data):
                         break
-                    length = struct.unpack('>I', data[offset:offset+4])[0]
-                    ctype = data[offset+4:offset+8].decode('ascii')
+                    # Parse length manually (big-endian)
+                    length = (data[offset] << 24) | (data[offset+1] << 16) | (data[offset+2] << 8) | data[offset+3]
+                    ctype = data[offset+4:offset+8]
                     cdata = data[offset+8:offset+8+length]
                     # skip CRC
                     offset = offset + 8 + length + 4
-                    if ctype == 'IHDR':
-                        width, height, bitdepth, colortype = struct.unpack('>IIBBxxxx', cdata[:13])
-                    elif ctype == 'IDAT':
+                    if ctype == b'IHDR' and len(cdata) >= 13:
+                        # Parse IHDR manually
+                        width = (cdata[0] << 24) | (cdata[1] << 16) | (cdata[2] << 8) | cdata[3]
+                        height = (cdata[4] << 24) | (cdata[5] << 16) | (cdata[6] << 8) | cdata[7]
+                        bitdepth = cdata[8]
+                        colortype = cdata[9]
+                    elif ctype == b'IDAT':
                         idat_data += cdata
-                    elif ctype == 'IEND':
+                    elif ctype == b'IEND':
                         break
 
                 if not idat_data or width is None:
                     print('PNG missing IDAT or IHDR')
                     return
 
-                # Decompress image data (zlib stream = deflate with 2-byte header + 4-byte checksum)
+                # Memory-efficient decompression: read in chunks to reduce peak memory
                 try:
-                    # Check if it has zlib header (0x78 followed by flags)
-                    if len(idat_data) >= 6 and idat_data[0] == 0x78:
-                        # Strip 2-byte zlib header and 4-byte trailing checksum
-                        deflate_data = idat_data[2:-4]
-                        decomp = deflate.decompress(deflate_data)
-                    else:
-                        # Try as raw deflate
-                        decomp = deflate.decompress(idat_data)
+                    import io
+                    
+                    # Create a stream from the IDAT data
+                    idat_stream = io.BytesIO(idat_data)
+                    
+                    # Use DeflateIO with ZLIB format to handle the headers automatically
+                    deflate_stream = deflate.DeflateIO(idat_stream, deflate.ZLIB)
+                    
+                    # Read decompressed data in chunks to reduce memory pressure
+                    decomp_chunks = []
+                    while True:
+                        chunk = deflate_stream.read(4096)  # Read 4KB at a time
+                        if not chunk:
+                            break
+                        decomp_chunks.append(chunk)
+                    
+                    deflate_stream.close()
+                    
+                    # Force garbage collection before joining chunks
+                    import gc
+                    gc.collect()
+                    
+                    # Join chunks into final decompressed data
+                    decomp = b''.join(decomp_chunks)
+                    del decomp_chunks  # Free chunk list immediately
+                    gc.collect()
+                    
+                    print(f'PNG decompressed: {len(decomp)} bytes')
+                    
                 except Exception as e:
                     print('PNG decompress failed:', e)
                     return
 
-                # Determine bytes per pixel
+                # Determine bytes per pixel and extract palette if needed
+                palette = None
                 if colortype == 2:
-                    bpp = 3
+                    bpp = 3  # RGB
+                elif colortype == 3:
+                    bpp = 1  # Palette-indexed
+                    print('Palette-indexed PNG detected, extracting palette...')
+                    # Extract palette from PLTE chunk
+                    offset = 8
+                    while offset < len(data) - 8:
+                        length = (data[offset] << 24) | (data[offset+1] << 16) | (data[offset+2] << 8) | data[offset+3]
+                        chunk_type = data[offset+4:offset+8]
+                        if chunk_type == b'PLTE':
+                            palette_data = data[offset+8:offset+8+length]
+                            palette = []
+                            for i in range(0, len(palette_data), 3):
+                                if i + 2 < len(palette_data):
+                                    r, g, b = palette_data[i], palette_data[i+1], palette_data[i+2]
+                                    palette.append((r, g, b))
+                            print(f'Extracted palette with {len(palette)} colors')
+                            break
+                        offset += 8 + length + 4
+                        if chunk_type == b'IEND':
+                            break
+                    if not palette:
+                        print('Palette-indexed PNG missing PLTE chunk')
+                        return
                 elif colortype == 6:
-                    bpp = 4
+                    bpp = 4  # RGBA
                 else:
                     print('Unsupported PNG color type', colortype)
                     return
@@ -326,9 +376,20 @@ class Display:
                         # Get source pixel
                         pixel_base = row_data_start + src_x * bpp
                         if pixel_base + bpp <= row_data_end:
-                            r = decomp[pixel_base]
-                            g = decomp[pixel_base + 1]
-                            b = decomp[pixel_base + 2]
+                            if colortype == 3:  # Palette-indexed
+                                palette_index = decomp[pixel_base]
+                                if palette_index < len(palette):
+                                    r, g, b = palette[palette_index]
+                                else:
+                                    r = g = b = 0  # Invalid palette index
+                            elif bpp == 3:  # RGB
+                                r = decomp[pixel_base]
+                                g = decomp[pixel_base + 1]
+                                b = decomp[pixel_base + 2]
+                            else:  # RGBA
+                                r = decomp[pixel_base]
+                                g = decomp[pixel_base + 1]
+                                b = decomp[pixel_base + 2]
                         else:
                             # Fallback for edge cases
                             r = g = b = 0
@@ -339,13 +400,20 @@ class Display:
                         line_buf[buf_idx + 1] = rgb565 & 0xFF         # Low byte
                         buf_idx += 2
                     
-                    # Write line directly to display
+                    # Write line directly to display in smaller chunks to avoid buffer issues
                     self.driver._set_window(0, out_y, out_w-1, out_y)
                     if self.driver.cs:
                         self.driver.cs.value(0)
                     if self.driver.dc:
                         self.driver.dc.value(1)
-                    self.driver.spi.write(line_buf)
+                    
+                    # Write in 64-pixel chunks (128 bytes) to avoid buffer overflow
+                    chunk_size = 128  # 64 pixels * 2 bytes per pixel
+                    for chunk_start in range(0, len(line_buf), chunk_size):
+                        chunk_end = min(chunk_start + chunk_size, len(line_buf))
+                        chunk = line_buf[chunk_start:chunk_end]
+                        self.driver.spi.write(chunk)
+                    
                     if self.driver.cs:
                         self.driver.cs.value(1)
                         
@@ -370,3 +438,58 @@ class Display:
                 print('PIL image processing failed:', e)
         else:
             print('PNG display not available in this environment:', path)
+
+    def draw_rgb565_raw(self, path):
+        """Display raw RGB565 binary file directly to screen.
+        
+        Expects exactly width*height*2 bytes of RGB565 data.
+        This is the most efficient format - no decompression needed.
+        """
+        try:
+            # Check file size
+            import uos
+            stat = uos.stat(path)
+            expected_size = self.width * self.height * 2
+            file_size = stat[6]  # st_size
+            
+            print(f"RGB565 file: {file_size} bytes, expected: {expected_size} bytes")
+            
+            if file_size != expected_size:
+                print(f"Warning: File size mismatch. Expected {expected_size}, got {file_size}")
+                # Continue anyway in case of metadata differences
+            
+            # Set display window to full screen
+            self.driver._set_window(0, 0, self.width - 1, self.height - 1)
+            
+            # Read and write in chunks to avoid large memory allocation
+            chunk_size = 4096  # 4KB chunks
+            print(f"Reading RGB565 data in {chunk_size} byte chunks...")
+            
+            with open(path, 'rb') as f:
+                total_written = 0
+                while True:
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        break
+                    
+                    # Write chunk directly to SPI
+                    self.driver.dc.value(1)  # Data mode
+                    self.driver.cs.value(0)  # Select display
+                    self.driver.spi.write(chunk)
+                    self.driver.cs.value(1)  # Deselect
+                    
+                    total_written += len(chunk)
+                    if total_written % (chunk_size * 4) == 0:  # Progress every 16KB
+                        print(f"Written: {total_written} bytes ({total_written*100//expected_size}%)")
+                
+                print(f"RGB565 display complete: {total_written} bytes written")
+                return True
+                
+        except Exception as e:
+            print('RGB565 display failed:', e)
+            try:
+                import sys
+                sys.print_exception(e)
+            except:
+                pass
+            return False

@@ -11,13 +11,13 @@ except Exception:
 
 
 class A1111Client:
-    def __init__(self, base_url, user=None, password=None, api_path='/sdapi/v1/txt2img', timeout=30, image_width=512, image_height=512):
+    def __init__(self, base_url, user=None, password=None, api_path='/sdapi/v1/txt2img', timeout=30, image_width=240, image_height=240):
         self.base_url = base_url.rstrip('/')
         self.api_path = api_path
         self.timeout = timeout
-        # target image size for requests
-        self.image_width = int(image_width) if image_width else 512
-        self.image_height = int(image_height) if image_height else 512
+        # target image size for requests - default to 240x240 for Pico LCD
+        self.image_width = int(image_width) if image_width else 240
+        self.image_height = int(image_height) if image_height else 240
         self.auth_header = None
         if user is not None and password is not None:
             creds = '{}:{}'.format(user, password)
