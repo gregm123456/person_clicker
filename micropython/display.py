@@ -186,7 +186,7 @@ class Display:
     def show_placeholder(self):
         """Show placeholder - fill screen with a color for now"""
         # Attempt to show the packaged unknown portrait from /assets first.
-        # If the on-device PNG renderer fails (missing uzlib or unsupported PNG),
+        # If the on-device PNG renderer fails (missing deflate or unsupported PNG),
         # fall back to a clear red startup screen so the device doesn't show the
         # older yellow/blue placeholder.
         if self.driver:
@@ -225,7 +225,7 @@ class Display:
         if self.driver:
             # Minimal PNG decoder for non-interlaced truecolor 8-bit images (color type 2 or 6)
             try:
-                import uzlib
+                import deflate
                 import struct
 
                 with open(path, 'rb') as f:
@@ -261,16 +261,19 @@ class Display:
                     print('PNG missing IDAT or IHDR')
                     return
 
-                # Decompress image data (zlib stream)
+                # Decompress image data (zlib stream = deflate with 2-byte header + 4-byte checksum)
                 try:
-                    decomp = uzlib.decompress(idat_data)
+                    # Check if it has zlib header (0x78 followed by flags)
+                    if len(idat_data) >= 6 and idat_data[0] == 0x78:
+                        # Strip 2-byte zlib header and 4-byte trailing checksum
+                        deflate_data = idat_data[2:-4]
+                        decomp = deflate.decompress(deflate_data)
+                    else:
+                        # Try as raw deflate
+                        decomp = deflate.decompress(idat_data)
                 except Exception as e:
-                    # Some PNGs have zlib headers split; try wrapping
-                    try:
-                        decomp = uzlib.decompress(b'\x78\x9c' + idat_data)
-                    except Exception as e2:
-                        print('PNG decompress failed', e, e2)
-                        return
+                    print('PNG decompress failed:', e)
+                    return
 
                 # Determine bytes per pixel
                 if colortype == 2:
