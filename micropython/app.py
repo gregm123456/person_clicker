@@ -57,6 +57,14 @@ class PersonClickerApp:
             pass
         self.current_selection = {'A': None, 'B': None, 'X': None, 'Y': None}
         self.request_id = 0
+        # Persistent random seed used for generation. It remains the same
+        # across category changes until the joystick/randomizer (CTRL)
+        # explicitly requests a new seed.
+        try:
+            self.current_seed = random.getrandbits(31)
+        except Exception:
+            # Fallback in case random is not available for some reason
+            self.current_seed = 1234
 
     def run(self):
         # simple loop sample; real implementation should poll buttons and wifi events
@@ -204,8 +212,34 @@ class PersonClickerApp:
         prompt = self.build_prompt()
         self.request_id += 1
         rid = self.request_id
+        # Determine which seed to use. If caller provided an explicit seed
+        # (e.g. joystick/randomizer), adopt it and store as the current seed.
+        # Otherwise reuse the persistent seed so category changes are
+        # deterministic until a remix occurs.
+        if seed is None:
+            # ensure we have a persistent seed
+            if not hasattr(self, 'current_seed') or self.current_seed is None:
+                try:
+                    self.current_seed = random.getrandbits(31)
+                except Exception:
+                    self.current_seed = 0
+            seed_to_use = self.current_seed
+        else:
+            # new seed supplied (remix); store it for future requests
+            try:
+                self.current_seed = seed
+            except Exception:
+                pass
+            seed_to_use = seed
+
         # call API synchronously for now
-        result = self.client.txt2img(prompt, seed=seed, steps=self.cfg.get('generation', {}).get('steps'), cfg_scale=self.cfg.get('generation', {}).get('cfg_scale'), sampler_name=self.cfg.get('generation', {}).get('sampler_name'))
+        result = self.client.txt2img(
+            prompt,
+            seed=seed_to_use,
+            steps=self.cfg.get('generation', {}).get('steps'),
+            cfg_scale=self.cfg.get('generation', {}).get('cfg_scale'),
+            sampler_name=self.cfg.get('generation', {}).get('sampler_name'),
+        )
         if not result:
             print('No image bytes received')
             self.display.show_text('API Error')
