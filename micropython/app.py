@@ -172,14 +172,14 @@ class PersonClickerApp:
         return current
 
     def build_prompt(self):
-        # Simple prompt builder: concatenate category values
+        # Simple prompt builder: concatenate selected category values only
         parts = []
         cats = self.demos.get('categories') or {}
         for k in ['A', 'B', 'X', 'Y']:
-            name = (cats.get(k) or {}).get('name')
             val = self.current_selection.get(k)
-            if name and val:
-                parts.append('{}: {}'.format(name, val))
+            # Only include the raw value (no category name)
+            if val:
+                parts.append(val)
         body = ', '.join(parts)
 
         # Optional prefix/suffix from configuration

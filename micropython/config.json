@@ -11,8 +11,8 @@
     "width": 240,
     "height": 240
   },
-  "prompt_prefix": "professional portrait photograph of a, ",
-  "prompt_suffix": ", person, high quality, detailed, realistic, photographic style",
+  "prompt_prefix": "professional portrait photograph of a ",
+  "prompt_suffix": " person, high quality, detailed, realistic, photographic style",
   "pins": {
     "button_a": 15,
     "button_b": 17,
