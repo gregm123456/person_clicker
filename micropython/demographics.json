@@ -37,7 +37,7 @@
     },
     "Y": {
       "name": "context",
-      "values": ["urban", "suburban", "rural", "wilderness", "farm", "indoor", "school", "factory", "outdoor"]
+      "values": ["urban", "suburban", "rural", "indoor", "school", "factory", "outdoor"]
     }
   }
 }
