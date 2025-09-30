@@ -4,3 +4,6 @@
 [submodule "pico2W_lcd1.3"]
 	path = pico2W_lcd1.3
 	url = https://github.com/gregm123456/pico2W_lcd1.3
+[submodule "automatic1111_pico_passthrough"]
+	path = automatic1111_pico_passthrough
+	url = https://github.com/gregm123456/automatic1111_pico_passthrough
