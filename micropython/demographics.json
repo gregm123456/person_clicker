@@ -6,7 +6,7 @@
     },
     "B": {
       "name": "age_of_life",
-      "values": ["child", "teen", "young adult", "adult", "middle aged", "senior"]
+      "values": ["young adult", "adult", "middle aged", "senior"]
     },
     "X": {
       "name": "country_of_origin",
