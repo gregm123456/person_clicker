@@ -24,3 +24,13 @@ This repository contains two main runtime targets:
 Bug reports and pull requests welcome. For device-specific issues include the Pico serial output and the version of MicroPython used on the device.
 
 For details about configuring the passthrough / Automatic1111 service and secrets, see `micropython/README.md`.
+
+## Demo video
+
+Here's a short demo of the project. If your Markdown renderer supports iframes it will show the video inline; otherwise a clickable thumbnail will open the short on YouTube.
+
+<iframe width="320" height="180" src="https://www.youtube.com/embed/saOANpPcf6s" title="Person Clicker demo (YouTube Short)" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
+[![Person Clicker demo](https://img.youtube.com/vi/saOANpPcf6s/hqdefault.jpg)](https://www.youtube.com/shorts/saOANpPcf6s)
+
+Note: GitHub strips iframes from README previews, so click the thumbnail above if the embedded player doesn't appear.
