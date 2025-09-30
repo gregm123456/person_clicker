@@ -65,28 +65,42 @@ class PersonClickerApp:
         except Exception:
             # Fallback in case random is not available for some reason
             self.current_seed = 1234
+        # Control whether to show the previously cached image on boot.
+        # Default: False (show placeholder/unknown_portrait.png until first button press)
+        self.show_cached_on_boot = bool((self.cfg.get('behavior') or {}).get('show_cached_on_boot', False))
+        # Internal flag to indicate we've seen the first user interaction
+        self._first_interaction_seen = False
 
     def run(self):
         # simple loop sample; real implementation should poll buttons and wifi events
-        # Show last image if available
-        # Prefer raw RGB565 image saved by passthrough: images/last.raw
-        data = read_binary('images/last.raw')
-        if data:
-            try:
-                # draw raw RGB565 directly
-                self.display.draw_rgb565_raw('images/last.raw')
-            except Exception:
-                self.display.show_placeholder()
-        else:
-            # fall back to any PNG saved previously for compatibility
-            data = read_binary('images/last.png')
+        # Startup display behavior:
+        # If the config enables showing cached image on boot, use the existing
+        # cached-last-image logic. Otherwise, show the placeholder image
+        # (assets/unknown_portrait.png) until the first button press occurs.
+        if self.show_cached_on_boot:
+            # Show last image if available
+            # Prefer raw RGB565 image saved by passthrough: images/last.raw
+            data = read_binary('images/last.raw')
             if data:
                 try:
-                    self.display.draw_scaled_png('images/last.png')
+                    # draw raw RGB565 directly
+                    self.display.draw_rgb565_raw('images/last.raw')
                 except Exception:
                     self.display.show_placeholder()
             else:
-                self.display.show_placeholder()
+                # fall back to any PNG saved previously for compatibility
+                data = read_binary('images/last.png')
+                if data:
+                    try:
+                        self.display.draw_scaled_png('images/last.png')
+                    except Exception:
+                        self.display.show_placeholder()
+                else:
+                    self.display.show_placeholder()
+        else:
+            # Default path: show placeholder/unknown_portrait until user interacts.
+            # Keep cached files intact on disk but don't display them yet.
+            self.display.show_placeholder()
         # main event loop (skeleton)
         print('PersonClickerApp: ready, entering main loop')
         hb_count = 0
@@ -110,6 +124,12 @@ class PersonClickerApp:
                             for name, pressed in events.items():
                                 if not pressed:
                                     continue
+                                # Mark that we've received the first user interaction
+                                if not self._first_interaction_seen:
+                                    self._first_interaction_seen = True
+                                    # If we were deferring showing cached image on boot,
+                                    # allow the first button press to trigger a selection
+                                    # and image request as normal. No extra action needed.
                                 if name in ('A', 'B', 'X', 'Y'):
                                     # map to category keys
                                     cat = name
@@ -127,6 +147,8 @@ class PersonClickerApp:
                             self.buttons.update()
                             for key in ('A', 'B', 'X', 'Y'):
                                 if self.buttons.is_pressed(key):
+                                    if not self._first_interaction_seen:
+                                        self._first_interaction_seen = True
                                     val = self.pick_new_for_category(key)
                                     print('Button', key, 'pressed ->', val)
                                     self.request_image(seed=None)

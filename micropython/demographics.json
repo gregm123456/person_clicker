@@ -36,8 +36,8 @@
       ]
     },
     "Y": {
-      "name": "economic_class",
-      "values": ["poor", "middle class", "wealthy"]
+      "name": "context",
+      "values": ["urban", "suburban", "rural", "wilderness", "farm", "indoor", "school", "factory", "outdoor"]
     }
   }
 }

@@ -27,4 +27,8 @@
   "selection": {
     "max_retry_pick_different": 5
   }
+  ,
+  "behavior": {
+    "show_cached_on_boot": false
+  }
 }
