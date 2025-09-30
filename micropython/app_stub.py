@@ -1,5 +1,23 @@
-# app_stub.py - helper for testing app logic in host environment (not used on Pico)
+"""app_stub.py - helper for testing app logic in host environment (not used on Pico)
+
+This stub avoids importing MicroPython-only modules by providing a minimal fake
+API client. It's intended only to exercise PersonClickerApp.build_prompt() and
+related selection logic on a host Python interpreter.
+"""
 import json
+import types
+import sys
+
+# Provide a fake api_client.A1111Client module/class to satisfy imports in app.py
+fake_api = types.SimpleNamespace()
+class FakeClient:
+	def __init__(self, *a, **k):
+		pass
+	def txt2img(self, *a, **k):
+		return None
+fake_api.A1111Client = FakeClient
+sys.modules['api_client'] = fake_api
+
 from app import PersonClickerApp
 from display import Display
 

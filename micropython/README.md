@@ -44,3 +44,9 @@ Files in this folder
 - `secrets.json.template` - template for secrets; copy to `secrets.local.json` locally and fill credentials
 
 See the project root `build_plan.md` for full design and acceptance criteria.
+
+Notes on simplified passthrough usage
+- The device now expects the Automatic1111 passthrough to return a raw RGB565 framebuffer for the Pico display.
+- The expected format is exactly 240x240 pixels, 2 bytes per pixel (RGB565), i.e. 240 * 240 * 2 = 115200 bytes.
+- When the passthrough returns `application/octet-stream`, the client will save the bytes to `images/last.raw` and the display will write them directly to the ST7789 with no PNG decoding or conversion.
+

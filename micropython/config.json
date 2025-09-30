@@ -1,16 +1,18 @@
 {
-  "api_base_url": "http://192.168.4.68:7860",
+  "api_base_url": "http://192.168.4.68:8080",
   "api_txt2img_path": "/sdapi/v1/txt2img",
   "image_request_size": 512,
   "generation": {
-    "steps": 20,
-    "cfg_scale": 7.0,
-    "sampler_name": "Euler"
+    "steps": 5,
+    "cfg_scale": 1.5,
+    "sampler_name": "DPM++ 2M"
   },
   "display": {
     "width": 240,
     "height": 240
   },
+  "prompt_prefix": "professional portrait photograph of a, ",
+  "prompt_suffix": ", person, high quality, detailed, realistic, photographic style",
   "pins": {
     "button_a": 15,
     "button_b": 17,
