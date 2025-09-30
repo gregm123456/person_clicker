@@ -91,6 +91,39 @@ class ST7789:
         self._write_data(bytearray([y0 >> 8, y0 & 0xFF, y1 >> 8, y1 & 0xFF]))
         
         self._write_cmd(_RAMWR)  # Write to RAM
+
+    def _fill_rect(self, x, y, w, h, color):
+        """Fill a rectangle area with a solid RGB565 color."""
+        # Clip to display bounds
+        if x < 0:
+            w += x
+            x = 0
+        if y < 0:
+            h += y
+            y = 0
+        if x + w > self.width:
+            w = self.width - x
+        if y + h > self.height:
+            h = self.height - y
+        if w <= 0 or h <= 0:
+            return
+
+        self._set_window(x, y, x + w - 1, y + h - 1)
+        color_hi = (color >> 8) & 0xFF
+        color_lo = color & 0xFF
+        # Line buffer for one scanline
+        line_buf = bytearray([color_hi, color_lo] * w)
+
+        if self.cs:
+            self.cs.value(0)
+        if self.dc:
+            self.dc.value(1)
+
+        for _ in range(h):
+            self.spi.write(line_buf)
+
+        if self.cs:
+            self.cs.value(1)
         
     def fill(self, color):
         """Fill entire screen with color (16-bit RGB565)"""
@@ -115,33 +148,101 @@ class ST7789:
         if self.cs:
             self.cs.value(1)
             
-    def text(self, string, x, y, color):
-        """Basic text rendering (draws small rectangles for characters)"""
-        char_width = 8
-        char_height = 8
-        
-        for i, char in enumerate(string):
-            char_x = x + i * char_width
-            if char_x + char_width > self.width:
+    def text(self, string, x, y, color, scale=1):
+        """Render text. Backwards-compatible: scale=1 retains prior block behavior.
+
+        When scale > 1, render using a tiny 5x7 bitmap font (uppercase) scaled up
+        so short messages can occupy most of the screen. Lowercase letters are
+        converted to uppercase for the simple font.
+        """
+        if scale <= 1:
+            # Preserve previous behavior
+            char_width = 8
+            char_height = 8
+            for i, char in enumerate(string):
+                char_x = x + i * char_width
+                if char_x + char_width > self.width:
+                    break
+                # Draw a small rectangle for each character
+                self._set_window(char_x, y, char_x + char_width - 1, y + char_height - 1)
+                color_hi = (color >> 8) & 0xFF
+                color_lo = color & 0xFF
+                char_buf = bytearray([color_hi, color_lo] * char_width)
+                if self.cs:
+                    self.cs.value(0)
+                if self.dc:
+                    self.dc.value(1)
+                for _ in range(char_height):
+                    self.spi.write(char_buf)
+                if self.cs:
+                    self.cs.value(1)
+            return
+
+        # Scaled text using 5x7 font
+        FONT_5x7 = {
+            ' ': [0x00,0x00,0x00,0x00,0x00],
+            '0': [0x3E,0x51,0x49,0x45,0x3E],
+            '1': [0x00,0x42,0x7F,0x40,0x00],
+            '2': [0x42,0x61,0x51,0x49,0x46],
+            '3': [0x21,0x41,0x45,0x4B,0x31],
+            '4': [0x18,0x14,0x12,0x7F,0x10],
+            '5': [0x27,0x45,0x45,0x45,0x39],
+            '6': [0x3C,0x4A,0x49,0x49,0x30],
+            '7': [0x01,0x71,0x09,0x05,0x03],
+            '8': [0x36,0x49,0x49,0x49,0x36],
+            '9': [0x06,0x49,0x49,0x29,0x1E],
+            'A': [0x7E,0x11,0x11,0x11,0x7E],
+            'B': [0x7F,0x49,0x49,0x49,0x36],
+            'C': [0x3E,0x41,0x41,0x41,0x22],
+            'D': [0x7F,0x41,0x41,0x22,0x1C],
+            'E': [0x7F,0x49,0x49,0x49,0x41],
+            'F': [0x7F,0x09,0x09,0x09,0x01],
+            'G': [0x3E,0x41,0x49,0x49,0x7A],
+            'H': [0x7F,0x08,0x08,0x08,0x7F],
+            'I': [0x00,0x41,0x7F,0x41,0x00],
+            'J': [0x20,0x40,0x41,0x3F,0x01],
+            'K': [0x7F,0x08,0x14,0x22,0x41],
+            'L': [0x7F,0x40,0x40,0x40,0x40],
+            'M': [0x7F,0x02,0x0C,0x02,0x7F],
+            'N': [0x7F,0x04,0x08,0x10,0x7F],
+            'O': [0x3E,0x41,0x41,0x41,0x3E],
+            'P': [0x7F,0x09,0x09,0x09,0x06],
+            'Q': [0x3E,0x41,0x51,0x21,0x5E],
+            'R': [0x7F,0x09,0x19,0x29,0x46],
+            'S': [0x46,0x49,0x49,0x49,0x31],
+            'T': [0x01,0x01,0x7F,0x01,0x01],
+            'U': [0x3F,0x40,0x40,0x40,0x3F],
+            'V': [0x1F,0x20,0x40,0x20,0x1F],
+            'W': [0x3F,0x40,0x38,0x40,0x3F],
+            'X': [0x63,0x14,0x08,0x14,0x63],
+            'Y': [0x07,0x08,0x70,0x08,0x07],
+            'Z': [0x61,0x51,0x49,0x45,0x43],
+            '-': [0x08,0x08,0x08,0x08,0x08],
+            ':': [0x00,0x36,0x36,0x00,0x00],
+            '.': [0x00,0x40,0x60,0x00,0x00],
+            '!': [0x00,0x00,0x5F,0x00,0x00],
+            '?': [0x02,0x01,0x51,0x09,0x06],
+            "'": [0x00,0x07,0x00,0x00,0x00]
+        }
+
+        # Render linearly left-to-right. Convert to uppercase for our limited font.
+        s = str(string).upper()
+        cursor_x = x
+        for ch in s:
+            glyph = FONT_5x7.get(ch, FONT_5x7[' '])
+            # glyph: list of 5 column bytes, LSB at top of column
+            for col_idx, col_val in enumerate(glyph):
+                for bit in range(7):
+                    if (col_val >> bit) & 1:
+                        px = cursor_x + col_idx * scale
+                        py = y + bit * scale
+                        # draw scaled pixel block
+                        self._fill_rect(px, py, scale, scale, color)
+            # one column spacing after glyph
+            cursor_x += (5 * scale) + scale
+            # stop if we run out of horizontal space
+            if cursor_x >= self.width:
                 break
-                
-            # Draw a small rectangle for each character
-            self._set_window(char_x, y, char_x + char_width - 1, y + char_height - 1)
-            
-            color_hi = (color >> 8) & 0xFF
-            color_lo = color & 0xFF
-            char_buf = bytearray([color_hi, color_lo] * char_width)
-            
-            if self.cs:
-                self.cs.value(0)
-            if self.dc:
-                self.dc.value(1)
-                
-            for _ in range(char_height):
-                self.spi.write(char_buf)
-                
-            if self.cs:
-                self.cs.value(1)
 
 
 class Display:
@@ -213,8 +314,42 @@ class Display:
         """Display text on screen"""
         if self.driver:
             try:
-                self.driver.fill(0x0000)  # Clear to black
-                self.driver.text(text, 10, 10, 0xFFFF)  # White text
+                # Clear screen
+                self.driver.fill(0x0000)  # Black
+
+                # Split into lines and pick a scale so text fills most of the screen.
+                # Our scaled font is 5x7 pixels per glyph plus 1 column spacing.
+                lines = str(text).split('\n')
+                # Determine the longest line length in characters
+                max_chars = max((len(l) for l in lines), default=0)
+                if max_chars == 0:
+                    return
+
+                # Choose scale so that text width fits within 90% of display width
+                # width_per_char = (5 + 1) * scale = 6 * scale
+                # So scale_max_w = floor((width * 0.9) / (6 * max_chars))
+                scale_w = max(1, int((self.width * 0.9) // (6 * max_chars)))
+                # Choose scale so that total height fits within 90% of display height
+                # height_per_line = 7 * scale
+                scale_h = max(1, int((self.height * 0.9) // (7 * len(lines))))
+                scale = min(scale_w, scale_h)
+
+                # Center the block of text
+                text_block_width = max_chars * (5 * scale + scale)
+                text_block_height = len(lines) * (7 * scale)
+                start_x = max(0, (self.width - text_block_width) // 2)
+                start_y = max(0, (self.height - text_block_height) // 2)
+
+                # Draw each line
+                y = start_y
+                for line in lines:
+                    # center each line horizontally within the block
+                    line_len = len(line)
+                    line_width = line_len * (5 * scale + scale)
+                    x = start_x + max(0, (text_block_width - line_width) // 2)
+                    # Use driver.text with scale to render
+                    self.driver.text(line, x, y, 0xFFFF, scale=scale)
+                    y += 7 * scale
             except Exception as e:
                 print('show_text failed', e)
         else:
