@@ -79,45 +79,78 @@ class PersonClickerApp:
         self._first_interaction_seen = False
 
     def run(self):
-        # simple loop sample; real implementation should poll buttons and wifi events
-        # Startup display behavior:
-        # If the config enables showing cached image on boot, use the existing
-        # cached-last-image logic. Otherwise, show the placeholder image
-        # (assets/unknown_portrait.png) until the first button press occurs.
-        if self.show_cached_on_boot:
-            # Show last image if available
-            # Prefer raw RGB565 image saved by passthrough: images/last.raw
-            data = read_binary('images/last.raw')
-            if data:
-                try:
-                    # draw raw RGB565 directly
-                    self.display.draw_rgb565_raw('images/last.raw')
-                except Exception:
-                    self.display.show_placeholder()
-            else:
-                # fall back to any PNG saved previously for compatibility
-                data = read_binary('images/last.png')
-                if data:
-                    try:
-                        self.display.draw_scaled_png('images/last.png')
-                    except Exception:
-                        self.display.show_placeholder()
-                else:
-                    self.display.show_placeholder()
-        else:
-            # Default path: show placeholder/unknown_portrait until user interacts.
-            # Keep cached files intact on disk but don't display them yet.
-            self.display.show_placeholder()
-        # main event loop (skeleton)
-        print('PersonClickerApp: ready, entering main loop')
+        # Main event loop - initialization phases happen here before entering the loop
+        print('PersonClickerApp: starting initialization phases...')
         hb_count = 0
+
+        # Show button initialization phase
+        try:
+            self.display.show_boot_phase("Buttons: starting", bg_color=(128, 64, 0), fg_color=(255, 255, 255), scale=2)
+            import time
+            time.sleep(1)
+        except Exception as e:
+            print(f"Button init phase display failed: {e}")
 
         # Setup buttons (if any) using pins from config
         try:
             pins = self.cfg.get('pins') if self.cfg else None
             self.buttons = Buttons(pins)
-        except Exception:
+            print('Buttons initialized successfully')
+        except Exception as e:
+            print(f'Button initialization failed: {e}')
             self.buttons = None
+
+        # All initialization complete - now render the portrait for the first and only time
+        print("All initialization complete, rendering portrait...")
+        
+        # Show the appropriate image based on configuration
+        if self.show_cached_on_boot:
+            # Show cached image if available
+            data = read_binary('images/last.raw')
+            if data:
+                try:
+                    self.display.draw_rgb565_raw('images/last.raw')
+                    print("Displayed cached raw image")
+                except Exception as e:
+                    print(f"Cached raw failed: {e}, falling back to placeholder")
+                    try:
+                        self.display.show_placeholder()
+                        print("Displayed placeholder (cached raw failed)")
+                    except Exception as e2:
+                        print(f"Placeholder fallback failed: {e2}")
+            else:
+                data = read_binary('images/last.png')
+                if data:
+                    try:
+                        self.display.draw_scaled_png('images/last.png')
+                        print("Displayed cached PNG image")
+                    except Exception as e:
+                        print(f"Cached PNG failed: {e}, falling back to placeholder")
+                        try:
+                            self.display.show_placeholder()
+                            print("Displayed placeholder (cached PNG failed)")
+                        except Exception as e2:
+                            print(f"Placeholder fallback failed: {e2}")
+                else:
+                    try:
+                        self.display.show_placeholder()
+                        print("Displayed placeholder (no cached image)")
+                    except Exception as e:
+                        print(f"Placeholder display failed: {e}")
+        else:
+            # Show placeholder/unknown portrait
+            try:
+                self.display.show_placeholder()
+                print("Displayed placeholder portrait")
+            except Exception as e:
+                print(f"Placeholder display failed: {e}")
+                # Try a simple fallback - fill with a color
+                try:
+                    self.display.driver.fill(0x0000)  # Black screen
+                    self.display.driver.text("Portrait failed", 10, 100, 0xFFFF)
+                    print("Displayed error message")
+                except Exception as e2:
+                    print(f"Error message display failed: {e2}")
 
         while True:
             try:

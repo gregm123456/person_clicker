@@ -31,25 +31,61 @@ def main():
     secrets = load_json(SECRETS_PATH)
     print("Secrets loaded:", bool(secrets))
 
+    # Initialize display early so we can show boot-phase messages.
     print("Initializing display...")
     disp = Display(cfg.get('display', {}))
     disp.init()
     print("Display initialized")
-    # Show placeholder (this will try the packaged /assets image, then fallback to red)
-    disp.show_placeholder()
+    
+    # Show a boot-phase message immediately after init (display-ready)
+    try:
+        disp.show_boot_phase("Display: ready", bg_color=(0, 48, 96), fg_color=(255, 255, 255), scale=2)
+        print("Showing 'Display: ready' phase")
+        time.sleep(1)  # Hold for 1 second to make it visible
+    except Exception as e:
+        print("Display ready (boot-phase message failed):", e)
 
+    # Initialize WiFi and show its boot phase messages
     print("Initializing WiFi...")
+    try:
+        disp.show_boot_phase("WiFi: starting", bg_color=(200, 120, 0), fg_color=(0, 0, 0), scale=2)
+        print("Showing 'WiFi: starting' phase")
+        time.sleep(1)  # Hold for 1 second
+    except Exception as e:
+        print("WiFi starting phase failed:", e)
+
     wifi = WifiManager(secrets.get('wifi') if secrets else None, cfg)
     wifi.connect(blocking=False)
+
+    try:
+        disp.show_boot_phase("WiFi: connecting", bg_color=(200, 200, 0), fg_color=(0, 0, 0), scale=2)
+        print("Showing 'WiFi: connecting' phase") 
+        time.sleep(1)  # Hold for 1 second
+    except Exception as e:
+        print("WiFi connecting phase failed:", e)
+
     print("WiFi connection initiated")
 
+    # Start the app and show app-start boot phase
     print("Starting PersonClickerApp...")
+    try:
+        disp.show_boot_phase("App: starting", bg_color=(0, 128, 64), fg_color=(255, 255, 255), scale=2)
+        print("Showing 'App: starting' phase")
+        time.sleep(1)  # Hold for 1 second
+    except Exception as e:
+        print("App starting phase failed:", e)
+
     app = PersonClickerApp(cfg, demos, secrets, disp, wifi)
+
+    print("Starting main app loop...")
     try:
         app.run()
     except Exception as e:
         # Very simple error display fallback
-        disp.show_text('Fatal error')
+        try:
+            disp.show_text('Fatal error')
+        except Exception:
+            pass
         print('Fatal error in app:', e)
 
 

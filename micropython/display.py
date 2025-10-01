@@ -251,38 +251,121 @@ class Display:
         self.width = self.cfg.get('width', 240)
         self.height = self.cfg.get('height', 240)
         self.driver = None
+        
+        if not MICROPYTHON:
+            # Host testing mode - create a mock PIL display for testing
+            if PIL_AVAILABLE:
+                try:
+                    self.image = Image.new('RGB', (self.width, self.height), 'black')
+                    self.draw = None
+                except Exception:
+                    self.image = None
+            else:
+                self.image = None
 
     def init(self):
-        """Initialize ST7789 display with Waveshare Pico LCD 1.3 pins"""
-        if not MICROPYTHON:
-            print('ST7789 driver not available in host env; display calls will be no-ops')
-            return
-        
-        # Waveshare Pico LCD 1.3 default pins
-        LCD_SCLK = self.cfg.get('sclk_pin', 10)   # GP10
-        LCD_MOSI = self.cfg.get('mosi_pin', 11)   # GP11
-        LCD_CS   = self.cfg.get('cs_pin', 9)      # GP9
-        LCD_DC   = self.cfg.get('dc_pin', 8)      # GP8
-        LCD_RESET= self.cfg.get('reset_pin', 12)  # GP12
-        LCD_BL   = self.cfg.get('bl_pin', 13)     # GP13
-        
+        """Initialize the display hardware or host fallback"""
+        if MICROPYTHON:
+            # Real hardware initialization
+            try:
+                # Initialize SPI and pins for ST7789
+                spi = SPI(1, baudrate=62500000, polarity=1, phase=1, sck=Pin(10), mosi=Pin(11))
+                
+                # Waveshare Pico LCD 1.3 pin assignments
+                reset_pin = Pin(12, Pin.OUT)
+                dc_pin = Pin(8, Pin.OUT) 
+                cs_pin = Pin(9, Pin.OUT)
+                
+                self.driver = ST7789(spi, self.width, self.height, reset=reset_pin, cs=cs_pin, dc=dc_pin)
+                self.driver.init()
+                print(f"ST7789 driver initialized: {self.width}x{self.height}")
+            except Exception as e:
+                print(f"Hardware display init failed: {e}")
+                self.driver = None
+        else:
+            # Host mode - PIL display window
+            if PIL_AVAILABLE and self.image:
+                try:
+                    from PIL import ImageDraw
+                    self.draw = ImageDraw.Draw(self.image)
+                    print(f"PIL display initialized: {self.width}x{self.height}")
+                except Exception as e:
+                    print(f"PIL display init failed: {e}")
+
+    # Helper: convert (r,g,b) 0-255 tuple to RGB565 16-bit int
+    def _rgb_tuple_to_565(self, rgb):
         try:
-            # Use SPI1 with explicit pin assignments
-            spi = SPI(1, baudrate=40000000, sck=Pin(LCD_SCLK), mosi=Pin(LCD_MOSI))
-            dc = Pin(LCD_DC, Pin.OUT)
-            cs = Pin(LCD_CS, Pin.OUT)
-            rst = Pin(LCD_RESET, Pin.OUT)
-            bl = Pin(LCD_BL, Pin.OUT)
+            r, g, b = rgb
+            r5 = (int(r) & 0xF8) >> 3
+            g6 = (int(g) & 0xFC) >> 2
+            b5 = (int(b) & 0xF8) >> 3
+            return (r5 << 11) | (g6 << 5) | b5
+        except Exception:
+            # If input isn't a tuple, assume it's already an int (RGB565)
+            try:
+                return int(rgb)
+            except Exception:
+                return 0
 
-            # Turn on backlight
-            bl.value(1)
+    def _ensure_color(self, color):
+        # Accept either (r,g,b) tuples or already-packed 16-bit ints
+        if color is None:
+            return 0x0000
+        if isinstance(color, tuple) and len(color) == 3:
+            return self._rgb_tuple_to_565(color)
+        return int(color)
 
-            self.driver = ST7789(spi, self.width, self.height, reset=rst, cs=cs, dc=dc, rotation=0)
-            self.driver.init()
-            print('ST7789 display initialized')
-        except Exception as e:
-            print('ST7789 init failed:', e)
-            self.driver = None
+    def show_boot_phase(self, text, bg_color=(0, 0, 0), fg_color=(255, 255, 255), scale=2):
+        """
+        Show a large, centered boot-phase message using fg/bg colors.
+        bg_color and fg_color can be (r,g,b) tuples (0-255) or a 16-bit RGB565 int.
+        scale selects text scaling (device-dependent).
+        """
+        bg = self._ensure_color(bg_color)
+        fg = self._ensure_color(fg_color)
+
+        # Fill background using the driver if available
+        if self.driver:
+            try:
+                self.driver.fill(bg)
+            except Exception as e:
+                print(f"Boot phase fill failed: {e}")
+        elif not MICROPYTHON and PIL_AVAILABLE and self.image and self.draw:
+            # Host testing with PIL
+            try:
+                # Convert RGB565 back to RGB for PIL
+                r = ((bg >> 11) & 0x1F) << 3
+                g = ((bg >> 5) & 0x3F) << 2 
+                b = (bg & 0x1F) << 3
+                from PIL import ImageDraw
+                self.draw.rectangle([0, 0, self.width, self.height], fill=(r, g, b))
+                print(f"BOOT (PIL): {text}")
+            except Exception as e:
+                print(f"BOOT (PIL fill failed): {text} - {e}")
+        else:
+            print(f"BOOT (console): {text}")
+
+        # Simple positioning: left margin and vertical center-ish
+        x = 8
+        approx_font_height = 7 * scale  # Use 7 since that's the actual font height
+        y = max((self.height // 2) - (approx_font_height // 2), 0)
+
+        # Draw the text using the driver if available
+        if self.driver:
+            try:
+                self.driver.text(text, x, y, fg, scale=scale)
+            except TypeError:
+                # text signature might not accept scale; try fallback without scale
+                try:
+                    self.driver.text(text, x, y, fg)
+                except Exception as e:
+                    print(f"Boot phase text failed: {e}")
+            except Exception as e:
+                print(f"Boot phase text failed: {e}")
+        elif not MICROPYTHON and PIL_AVAILABLE and self.draw:
+            # Host testing with PIL - just print since PIL text is complex
+            print(f"BOOT (PIL text): {text}")
+        # Console fallback is already handled above
 
     def show_placeholder(self):
         """Show placeholder - fill screen with a color for now"""
