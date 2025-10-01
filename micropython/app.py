@@ -79,6 +79,12 @@ class PersonClickerApp:
         self._first_interaction_seen = False
         # Track if we're in an API error state to show "Retrying..." on next button press
         self._api_error_state = False
+        # Attempt to load persisted state (last selections + seed)
+        try:
+            self._load_persistent_state()
+        except Exception:
+            # If loading fails for any reason, proceed with defaults
+            pass
 
     def run(self):
         # Main event loop - initialization phases happen here before entering the loop
@@ -278,13 +284,72 @@ class PersonClickerApp:
             cand = random.choice(values)
             if cand != current:
                 self.current_selection[cat_key] = cand
+                # Persist selection change immediately so reboot preserves it
+                try:
+                    self._save_persistent_state()
+                except Exception:
+                    pass
                 return cand
         # fallback: pick the first different value deterministically
         for v in values:
             if v != current:
                 self.current_selection[cat_key] = v
+                try:
+                    self._save_persistent_state()
+                except Exception:
+                    pass
                 return v
         return current
+
+    def _load_persistent_state(self):
+        """Load persisted state from 'state.json' if present.
+
+        Expected shape: {"current_selection": {A:B,...}, "current_seed": 1234}
+        """
+        try:
+            with open('state.json', 'r') as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                return
+            sel = data.get('current_selection')
+            if isinstance(sel, dict):
+                # Only assign known keys to avoid unexpected data pollution
+                for k in ('A', 'B', 'X', 'Y'):
+                    if k in sel:
+                        self.current_selection[k] = sel.get(k)
+            seed = data.get('current_seed')
+            if seed is not None:
+                try:
+                    # ensure int type
+                    self.current_seed = int(seed)
+                except Exception:
+                    pass
+        except Exception:
+            # Missing file or bad JSON: ignore and continue
+            pass
+
+    def _save_persistent_state(self):
+        """Atomically write state.json containing current_selection and current_seed.
+
+        Uses atomic_write for safe writes when available; falls back to simple write.
+        """
+        payload = {
+            'current_selection': self.current_selection,
+            'current_seed': getattr(self, 'current_seed', None)
+        }
+        try:
+            b = json.dumps(payload).encode('utf-8')
+            # Prefer atomic_write helper if available
+            try:
+                atomic_write('state.json', b)
+                return True
+            except Exception:
+                # Fallback to simple write
+                with open('state.json', 'wb') as f:
+                    f.write(b)
+                return True
+        except Exception:
+            return False
 
     def build_prompt(self):
         # Simple prompt builder: concatenate selected category values only
@@ -335,6 +400,11 @@ class PersonClickerApp:
             # new seed supplied (remix); store it for future requests
             try:
                 self.current_seed = seed
+                # Persist the new seed so subsequent boots reuse it
+                try:
+                    self._save_persistent_state()
+                except Exception:
+                    pass
             except Exception:
                 pass
             seed_to_use = seed

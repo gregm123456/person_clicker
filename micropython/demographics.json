@@ -37,7 +37,7 @@
     },
     "Y": {
       "name": "context",
-      "values": ["urban street scene", "suburban interior", "pastoral", "car selfie", "university classroom", "factory", "beach","office desk"]
+      "values": ["urban street scene", "suburban back yard", "pastoral", "car selfie", "university", "factory", "beach", "office desk"]
     }
   }
 }
