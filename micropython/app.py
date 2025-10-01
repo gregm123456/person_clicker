@@ -180,8 +180,9 @@ class PersonClickerApp:
                                     # Show "Retrying..." if we're in an error state
                                     if self._api_error_state:
                                         try:
-                                            self.display.show_text('Retrying...')
+                                            self.display.show_text('Retrying...', bg_color=(0, 100, 0))
                                             print('Showing retry message after API error')
+                                            time.sleep(1)
                                         except Exception as e:
                                             print('Failed to show retry message:', e)
                                     # request image with new params
@@ -197,8 +198,9 @@ class PersonClickerApp:
                                     # Show "Retrying..." if we're in an error state
                                     if self._api_error_state:
                                         try:
-                                            self.display.show_text('Retrying...')
+                                            self.display.show_text('Retrying...', bg_color=(0, 100, 0))
                                             print('Showing retry message after API error (remix)')
+                                            time.sleep(1)
                                         except Exception as e:
                                             print('Failed to show retry message (remix):', e)
                                     # remix: same params, new random seed
@@ -217,8 +219,9 @@ class PersonClickerApp:
                                     # Show "Retrying..." if we're in an error state
                                     if self._api_error_state:
                                         try:
-                                            self.display.show_text('Retrying...')
+                                            self.display.show_text('Retrying...', bg_color=(0, 100, 0))
                                             print('Showing retry message after API error')
+                                            time.sleep(1)
                                         except Exception as e:
                                             print('Failed to show retry message:', e)
                                     if not self.category_presses_change_seed:
@@ -231,7 +234,7 @@ class PersonClickerApp:
                                 # Show "Retrying..." if we're in an error state
                                 if self._api_error_state:
                                     try:
-                                        self.display.show_text('Retrying...')
+                                        self.display.show_text('Retrying...', bg_color=(0, 100, 0))
                                         print('Showing retry message after API error (remix)')
                                     except Exception as e:
                                         print('Failed to show retry message (remix):', e)

@@ -393,12 +393,15 @@ class Display:
         else:
             print('PLACEHOLDER: Person Clicker - Loading...')
 
-    def show_text(self, text):
+    def show_text(self, text, bg_color=None, fg_color=(255, 255, 255)):
         """Display text on screen"""
         if self.driver:
             try:
-                # Clear screen
-                self.driver.fill(0x0000)  # Black
+                # Clear screen with specified background color
+                bg = self._ensure_color(bg_color)
+                self.driver.fill(bg)
+
+                fg = self._ensure_color(fg_color)
 
                 # Split into lines and pick a scale so text fills most of the screen.
                 # Our scaled font is 5x7 pixels per glyph plus 1 column spacing.
@@ -431,7 +434,7 @@ class Display:
                     line_width = line_len * (5 * scale + scale)
                     x = start_x + max(0, (text_block_width - line_width) // 2)
                     # Use driver.text with scale to render
-                    self.driver.text(line, x, y, 0xFFFF, scale=scale)
+                    self.driver.text(line, x, y, fg, scale=scale)
                     y += 7 * scale
             except Exception as e:
                 print('show_text failed', e)
