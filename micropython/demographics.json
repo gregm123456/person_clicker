@@ -6,7 +6,7 @@
     },
     "B": {
       "name": "age_of_life",
-      "values": ["young adult", "adult", "middle aged", "(elderly)"]
+      "values": ["[young adult]", "adult", "middle aged", "(elderly)"]
     },
     "X": {
       "name": "country_of_origin",
@@ -37,7 +37,7 @@
     },
     "Y": {
       "name": "context",
-      "values": ["urban", "suburban", "rural", "indoor", "school", "factory", "outdoor"]
+      "values": ["urban street scene", "suburban interior", "pastoral", "car selfie", "university classroom", "factory", "beach","office desk"]
     }
   }
 }
