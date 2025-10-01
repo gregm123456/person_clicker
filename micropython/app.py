@@ -68,6 +68,13 @@ class PersonClickerApp:
         # Control whether to show the previously cached image on boot.
         # Default: False (show placeholder/unknown_portrait.png until first button press)
         self.show_cached_on_boot = bool((self.cfg.get('behavior') or {}).get('show_cached_on_boot', False))
+        # Config key: whether category button presses should change the persistent seed.
+        # Default: False (category presses do NOT change seed). We no longer support
+        # the legacy `remix_changes_seed_only` key — it has been removed to avoid
+        # confusing semantics. If you need backward-compat configs, update them to
+        # use `category_presses_change_seed` explicitly.
+        behavior_cfg = (self.cfg.get('behavior') or {})
+        self.category_presses_change_seed = bool(behavior_cfg.get('category_presses_change_seed', False))
         # Internal flag to indicate we've seen the first user interaction
         self._first_interaction_seen = False
 
@@ -136,7 +143,14 @@ class PersonClickerApp:
                                     val = self.pick_new_for_category(cat)
                                     print('Button', name, 'pressed ->', val)
                                     # request image with new params
-                                    self.request_image(seed=None)
+                                    if not self.category_presses_change_seed:
+                                        # keep persistent seed: category changes do not remix
+                                        self.request_image(seed=None)
+                                    else:
+                                        # treat category press as a remix: generate and use new seed
+                                        seed = random.getrandbits(31)
+                                        print('Category press -> new seed', seed)
+                                        self.request_image(seed=seed)
                                 elif name in ('CTRL', 'joystick', 'JOYSTICK'):
                                     # remix: same params, new random seed
                                     seed = random.getrandbits(31)
@@ -151,7 +165,12 @@ class PersonClickerApp:
                                         self._first_interaction_seen = True
                                     val = self.pick_new_for_category(key)
                                     print('Button', key, 'pressed ->', val)
-                                    self.request_image(seed=None)
+                                    if not self.category_presses_change_seed:
+                                        self.request_image(seed=None)
+                                    else:
+                                        seed = random.getrandbits(31)
+                                        print('Category press -> new seed', seed)
+                                        self.request_image(seed=seed)
                             if self.buttons.is_pressed('CTRL'):
                                 seed = random.getrandbits(31)
                                 print('Remix press -> seed', seed)

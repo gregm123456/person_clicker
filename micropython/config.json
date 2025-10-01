@@ -1,5 +1,5 @@
 {
-  "api_base_url": "http://192.168.4.68:8080",
+  "api_base_url": "http://184.23.244.193:8080",
   "api_txt2img_path": "/sdapi/v1/txt2img",
   "image_request_size": 512,
   "generation": {
@@ -29,6 +29,7 @@
   }
   ,
   "behavior": {
-    "show_cached_on_boot": false
+    "show_cached_on_boot": false,
+    "category_presses_change_seed": true
   }
 }

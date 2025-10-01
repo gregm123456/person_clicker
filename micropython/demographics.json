@@ -2,11 +2,11 @@
   "categories": {
     "A": {
       "name": "sex",
-      "values": ["male", "female", "non-binary", "genderqueer"]
+      "values": ["male", "female", "(non-binary)", "(genderqueer)"]
     },
     "B": {
       "name": "age_of_life",
-      "values": ["young adult", "adult", "middle aged", "senior"]
+      "values": ["young adult", "adult", "middle aged", "(elderly)"]
     },
     "X": {
       "name": "country_of_origin",
