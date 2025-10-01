@@ -77,6 +77,8 @@ class PersonClickerApp:
         self.category_presses_change_seed = bool(behavior_cfg.get('category_presses_change_seed', False))
         # Internal flag to indicate we've seen the first user interaction
         self._first_interaction_seen = False
+        # Track if we're in an API error state to show "Retrying..." on next button press
+        self._api_error_state = False
 
     def run(self):
         # Main event loop - initialization phases happen here before entering the loop
@@ -175,6 +177,13 @@ class PersonClickerApp:
                                     cat = name
                                     val = self.pick_new_for_category(cat)
                                     print('Button', name, 'pressed ->', val)
+                                    # Show "Retrying..." if we're in an error state
+                                    if self._api_error_state:
+                                        try:
+                                            self.display.show_text('Retrying...')
+                                            print('Showing retry message after API error')
+                                        except Exception as e:
+                                            print('Failed to show retry message:', e)
                                     # request image with new params
                                     if not self.category_presses_change_seed:
                                         # keep persistent seed: category changes do not remix
@@ -185,6 +194,13 @@ class PersonClickerApp:
                                         print('Category press -> new seed', seed)
                                         self.request_image(seed=seed)
                                 elif name in ('CTRL', 'joystick', 'JOYSTICK'):
+                                    # Show "Retrying..." if we're in an error state
+                                    if self._api_error_state:
+                                        try:
+                                            self.display.show_text('Retrying...')
+                                            print('Showing retry message after API error (remix)')
+                                        except Exception as e:
+                                            print('Failed to show retry message (remix):', e)
                                     # remix: same params, new random seed
                                     seed = random.getrandbits(31)
                                     print('Remix press -> seed', seed)
@@ -198,6 +214,13 @@ class PersonClickerApp:
                                         self._first_interaction_seen = True
                                     val = self.pick_new_for_category(key)
                                     print('Button', key, 'pressed ->', val)
+                                    # Show "Retrying..." if we're in an error state
+                                    if self._api_error_state:
+                                        try:
+                                            self.display.show_text('Retrying...')
+                                            print('Showing retry message after API error')
+                                        except Exception as e:
+                                            print('Failed to show retry message:', e)
                                     if not self.category_presses_change_seed:
                                         self.request_image(seed=None)
                                     else:
@@ -205,6 +228,13 @@ class PersonClickerApp:
                                         print('Category press -> new seed', seed)
                                         self.request_image(seed=seed)
                             if self.buttons.is_pressed('CTRL'):
+                                # Show "Retrying..." if we're in an error state
+                                if self._api_error_state:
+                                    try:
+                                        self.display.show_text('Retrying...')
+                                        print('Showing retry message after API error (remix)')
+                                    except Exception as e:
+                                        print('Failed to show retry message (remix):', e)
                                 seed = random.getrandbits(31)
                                 print('Remix press -> seed', seed)
                                 self.request_image(seed=seed)
@@ -317,6 +347,8 @@ class PersonClickerApp:
         if not result:
             print('No image bytes received')
             self.display.show_text('API Error')
+            # Set API error state so next button press shows "Retrying..."
+            self._api_error_state = True
             return
 
         # If the client returned a file path (streamed raw data), display directly
@@ -325,6 +357,8 @@ class PersonClickerApp:
             if rid == self.request_id:
                 try:
                     self.display.draw_rgb565_raw(path)
+                    # Clear API error state on successful display
+                    self._api_error_state = False
                 except Exception as e:
                     print('display raw failed', e)
                     self.display.show_text('Display Error')
@@ -339,6 +373,8 @@ class PersonClickerApp:
                 if rid == self.request_id:
                     try:
                         self.display.draw_rgb565_raw('images/last.raw')
+                        # Clear API error state on successful display
+                        self._api_error_state = False
                     except Exception as e:
                         print('display raw failed', e)
                         self.display.show_text('Display Error')
@@ -349,9 +385,13 @@ class PersonClickerApp:
             if rid == self.request_id:
                 try:
                     self.display.draw_scaled_png('images/last.png')
+                    # Clear API error state on successful display
+                    self._api_error_state = False
                 except Exception as e:
                     print('display png failed', e)
                     self.display.show_text('Display Error')
         else:
             print('No image bytes received')
             self.display.show_text('API Error')
+            # Set API error state since we failed to get image data
+            self._api_error_state = True
