@@ -419,7 +419,7 @@ class PersonClickerApp:
         )
         if not result:
             print('No image bytes received')
-            self.display.show_text('API Error')
+            self.display.show_text('Try again?')
             # Set API error state so next button press shows "Retrying..."
             self._api_error_state = True
             return
@@ -465,6 +465,6 @@ class PersonClickerApp:
                     self.display.show_text('Display Error')
         else:
             print('No image bytes received')
-            self.display.show_text('API Error')
+            self.display.show_text('Try again?')
             # Set API error state since we failed to get image data
             self._api_error_state = True
