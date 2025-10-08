@@ -32,6 +32,9 @@ Deploy examples (macOS / bash)
 # from repo root. The helper uses serial://auto by default; pass a device path to override
 ./scripts/deploy_pico.sh
 
+# Example: wipe the device filesystem and deploy to a specific port
+./scripts/deploy_pico.sh --wipe /dev/cu.usbmodem114301
+
 # optionally run main immediately after deploy
 python -m mpremote connect serial://auto run :/main.py
 ```
